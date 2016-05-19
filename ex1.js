@@ -1,8 +1,8 @@
 /** Example 1
  *
  * The only purpose of this example is to create a canvas and render a random
- * buffer of pixels to it. This demonstrates the extemely lightweight api
- * for rendering pixels that has been created for these examples.
+ * buffer of pixels to it. This demonstrates the extremely lightweight api
+ * for rendering pixels, which will be use throughout these examples.
  *
  */
 

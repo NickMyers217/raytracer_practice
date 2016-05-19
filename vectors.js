@@ -47,6 +47,7 @@ const Vec3 = class
 	}
 
 	// Normalize a Vec3 and return a new one
+	// TODO: Unit test this
 	normalize() {
 		const m = this.mag();
 
@@ -55,7 +56,7 @@ const Vec3 = class
 
 	// Compute the dot product of 2 Vec3's
 	dot({ x, y, z }) {
-		return new Vec3(this.x * x + this.y * y + this.z * z);
+		return this.x * x + this.y * y + this.z * z;
 	}
 
 	// Swizzle the x and y components
