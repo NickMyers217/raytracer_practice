@@ -19,6 +19,7 @@ const Vec2 = class
 	}
 }
 
+
 // A minimal 3D vector class
 const Vec3 = class
 {
@@ -47,7 +48,7 @@ const Vec3 = class
 
 	// Normalize a Vec3 and return a new one
 	normalize() {
-		var m = this.mag();
+		const m = this.mag();
 
 		return new Vec3(this.x / m, this.y / m, this.z / m);
 	}
@@ -68,5 +69,21 @@ const Vec3 = class
 }
 
 
-console.log(new Vec2());
-console.log(new Vec3());
+// A minimal color class
+const Color = class
+{
+	// A color has an red, green, blue, and alpha value, each from 0 to 255
+	// The default is black (0, 0, 0, 255)
+	// The alpha must be 255 to ensure full visibility
+	constructor(r = 0, b = 0, g = 0, a = 255) {
+		this.r = r;
+		this.g = g;
+		this.b = b;
+		this.a = a;
+	}
+
+	// Convert the color into an array of 4 bytes
+	toArr() {
+		return [this.r, this.g, this.b, this.a];
+	}
+}
