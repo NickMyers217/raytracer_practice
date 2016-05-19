@@ -38,7 +38,7 @@ const Sphere = class {
 	}
 }
 
-// A sphere at the origin, with a radius of 0.5
+// A sphere at the origin, with a radius of 1
 let sph = new Sphere(new Vec3(0.0, 0.0, 0.0), 1.0, new Color(30, 80, 120, 255));
 console.log(sph);
 
@@ -74,14 +74,14 @@ for(let y = 0; y < scr.height; y++) {
 		let r = new Ray( new Vec3(0.0, 0.0, 4.0), // Move the camera back from the origin
 				         new Vec3((x / scr.width * 2.0 - 1.0) * 1.2, // Squish the x 20% for looks
 					              (y / scr.height * 2.0 - 1.0) * -1.0,
-						          -1.0) );
+					              -1.0) );
 
 		/** 5) Determine intersection
 		 *
 		 * Now that we have a ray for the pixel, we need to "trace" it
 		 * and see if it intersects the sphere at any point
 		 * this math is going to get complicated. I apologize
-	     *
+		 *
 		 * First we begin with the implicit equation of our ray
 		 * |origin + direction unit * distance| or |o + d*t|
 		 *
@@ -103,7 +103,7 @@ for(let y = 0; y < scr.height; y++) {
 		 * Two binomials need to be FOILed
 		 * o^2 + odt + odt + d^2t^2 - r^2 = 0
 		 *
-		 * Simplify in to a quadrafic equation (ax^2 + bx + x)
+		 * Simplify in to a quadrafic equation (ax^2 + bx + c)
 		 * d^2t^2 + 2odt + o^2-r^2 = 0
 		 *
 		 * Now we can use the quadratic formula to solve for t where:
