@@ -1,170 +1,134 @@
 /** Example 2
  *
- * The purpose of this example is to show:
- * => The math involved in mapping our 2D screen to a 3D space (aka scene)
- * => How to implicitly model a sphere in the scene with no actual mesh
- * => How to trace rays into the scene and test for an intersection
+ * The purpose of this example is to set up our canvas for rendering
+ * a 3d scene.
  *
- * Here is the sequence of steps we need to take:
- * 1) Set up the screen as shown in ex1
- * 2) Set up the state for a scene. We will have only a single sphere in it
- * 3) Set up the perspective (aka camera) to look into the scene
- * 4) We will trace a ray for every pixel of the screen from the camera origin
- * 5) Determine if the ray intersects the sphere.
- * 6) We will color the pixel accordingly
- * 7) We will display the final image to the screen
- * 
- * We will not perform any shading or light modelling, so the scene will look 2d
+ * This will involve mapping our 2d grid of pixels, or raster coordinate space,
+ * to the screen coordinate space in which all of our eventual 3d objects
+ * will reside. Then we will create a ray for each pixel and assign a color to it.
  *
  */
 
-/* 1) Set up the screen */
-let scr = new Screen();
+// A 3d vector utility class
+const Vec3 = class {
+  constructor(x=0.0, y=0.0, z=0.0) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+  }
 
+  add({ x,y,z }) {
+    return new Vec3(this.x + x, this.y + y, this.z + z);
+  }
 
-/* 2) Set up the scene state */
+  sub({ x,y,z }) {
+    return new Vec3(this.x - x, this.y - y, this.z - z);
+  }
 
-// Normally a scene would have many objects contained in an array
-// in this case we will just have one sphere to worry about
+  scale(s) {
+    return new Vec3(this.x * s, this.y * s, this.z * s);
+  }
 
-// First we need to implicitly model a sphere to put in our scene
-// We need 2 things to do this, the sphere's center and radius
-// We will also add a color for fun
-const Sphere = class {
-	constructor(center, radius, color) {
-		this.center = center;
-		this.radius = radius;
-		this.color = color;
-	}
-}
+  dot({ x,y,z }) {
+    return this.x * x + this.y * y + this.z * z;
+  }
 
-// A sphere at the origin, with a radius of 1
-let sph = new Sphere(new Vec3(0.0, 0.0, 0.0), 1.0, new Color(30, 80, 120, 255));
-console.log(sph);
+  mag() {
+    return Math.sqrt(this.dot(this));
+  }
 
-
-/* 3) Set up the perspective */
-
-// Now we need to worry about how we will actually look into this 3d scene
-// with our 2d screen. For now we will stay simple and just work with rays
-
-// A ray needs 2 things. An origin, and a direction unit vector
-const Ray = class {
-	constructor(origin, dir) {
-		this.origin = origin;
-		this.dir = dir.normalize();
-	}
+  normalize() {
+    const m = this.mag();
+    return new Vec3(this.x / m, this.y / m, this.z / m);
+  }
 }
 
 
-/* 4) Trace a ray for every single pixel of the screen */
+// Run this function after the page loads
+window.onload = () => {
+  // The width and height of  the canvas
+  const WIDTH = 640;
+  const HEIGHT = 480;
+  // Create the canvas element
+  let canvas = document.createElement('canvas');
+  // Create the drawing context
+  let ctx = canvas.getContext('2d');
+  // Create and empty byte buffer to store our image
+  let img = ctx.createImageData(WIDTH, HEIGHT);
 
-// This is the core ray tracing algorithm where all the magic happens
-// We can begin with set of loops that will iterate over each pixel
-for(let y = 0; y < scr.height; y++) {
-	for(let x = 0; x < scr.width; x++) {
-		/* So now that we have the coordinates of this pixel
-		 * We need to create a ray for it
-		 * The ray origin should be where the camera is placed
-		 * The direction needs to be as follows:
-		 * The x coord of the pixel in -1 to 1 space
-		 * The y coord of the pixel in -1 to 1 space (invert this since the JS canvas is upside down)
-		 * A unit in the negative z direction (into the scene)
-		 */
-		let r = new Ray( new Vec3(0.0, 0.0, 4.0), // Move the camera back from the origin
-				         new Vec3((x / scr.width * 2.0 - 1.0) * 1.2, // Squish the x 20% for looks
-					              (y / scr.height * 2.0 - 1.0) * -1.0,
-					              -1.0) );
+  // Loop through each pixel in the raster space
+  for(let y = 0; y < HEIGHT; y++) {
+    for(let x = 0; x < WIDTH ; x++) {
+      // Fhe first step in remapping the raster space is to 
+      // convert to NDC (normalized device coordinates).
+      // NDC puts x and y between 0 and 1.
+      // The + 0.5 is so that x and y represent the CENTER of the pixel.
+      let ndcX = (x + 0.5) / WIDTH;
+      let ndcY = (y + 0.5) / HEIGHT;
 
-		/** 5) Determine intersection
-		 *
-		 * Now that we have a ray for the pixel, we need to "trace" it
-		 * and see if it intersects the sphere at any point
-		 * this math is going to get complicated. I apologize
-		 *
-		 * First we begin with the implicit equation of our ray
-		 * |origin + direction unit * distance| or |o + d*t|
-		 *
-		 * Nex we need the equation of a sphere
-		 * x^2 + y^2 + z^2 = r^2
-		 *
-		 * Well x,y,z are just the vector for a point, so we can do this
-		 * P^2 = r^2 or P^2 - r^2 = 0
-		 *
-		 * If our ray describes a point on the sphere, that equation will be zero
-		 * So that is the test. Lets substitue P for our ray equation.
-		 * |o + d*t|^2 - r^2 = 0
-		 *
-		 * o = ray origin, d = ray unit vector direction, r = sphere radius
-		 *
-		 * Now we need to see if this equation is solvable by finding t
-		 * (o + d*t) * (o + d*t) - r^2 = 0
-		 *
-		 * Two binomials need to be FOILed
-		 * o^2 + odt + odt + d^2t^2 - r^2 = 0
-		 *
-		 * Simplify in to a quadrafic equation (ax^2 + bx + c)
-		 * d^2t^2 + 2odt + o^2-r^2 = 0
-		 *
-		 * Now we can use the quadratic formula to solve for t where:
-		 * a = d^2 or d . d
-		 * b = 2*o*d
-		 * c = (o . o) - (r * r)
-		 *
-		 * And since the sphere may not be at the origin, we can account
-		 * for that like this (just subtract the origin from the sphere center)
-		 * a = d . d
-		 * b = 2 * (o - c) . d
-		 * c = ((o - c) . (o - c)) - (r * r)
-		 *
-		 * Now since we are going to solve the quadratic equation, we need to
-		 * look at the discriminant (b^2 - 4ac)
-		 *
-		 * When it is negative, there is no intersection.
-		 * When it is zero, the ray is tangent to the sphere (1 intersection)
-		 * When it is positive, there are two intersections (1 for each solution)
-		 *
-		 * IF the discriminant is positive we will take the value closer to zero
-		 */
-		const oc = r.origin.sub(sph.center);
-		const a = r.dir.dot(r.dir);
-		const b = 2.0 * oc.dot(r.dir);
-		const c = oc.dot(oc) - sph.radius * sph.radius;
-		const disc = b*b - 4.0*a*c;
-		let t = -1.0; // What we are solving for
+      // Now converting ndc to screen space is trivial.
+      // It just needs to be from -1 to 1 instead of 0 to 1.
+      let pX = ndcX * 2.0 - 1.0;
+      // The y coordinate is upside down, so we invert it.
+      let pY = 1.0 - ndcY * 2.0;
 
-		if(x === 0 && y === 0) {
-			console.log(oc);
-			console.log(a);
-			console.log(b);
-			console.log(c);
-			console.log(disc);
-		}
+      // Unfortunately that assumes a square image.
+      // Often times an image is wider than it is taller due to its
+      // aspect ratio (width / height). If that is the case
+      // we need to correct our x coordiante accordingly.
+      pX *= (WIDTH / HEIGHT);
 
-		// No hit
-		if(disc < 0.0) { 
-			t = - 1.0;
-		}
-		// 1 hit
-		else if(disc === 0.0) {
-			t = -0.5 * b / a;
-		}
-		// 2 hits
-		else {
-			const t1 = (-0.5 * (b + Math.sqrt(disc))) / a; // hit1
-			const t2 = (-0.5 * (b - Math.sqrt(disc))) / a; // hit2
+      // There is one more thing that can be done now.
+      // This whole thing assumes a field of view of 90 degrees.
+      // We can scale our coordinates for a different FOV like this.
+      const fov = 90;
+      pX *= Math.tan(fov * 0.5 * Math.PI / 180);
+      pY *= Math.tan(fov * 0.5 * Math.PI / 180);
 
-			// We want the positive value that is closer to zero
-			if(t1 > 0.0 && t1 < t2) t = t1;
-			if(t2 > 0.0 && t2 < t1) t = t2;
-		}
+      // That seemed like a lot of work, but it can be summed up concisely
+      const aspect = WIDTH / HEIGHT;
+      const scale = Math.tan(fov * 0.5 * Math.PI / 180);
+      pX = ((x + 0.5) / WIDTH * 2.0 - 1.0) * aspect * scale;
+      pY = (1 - (y + 0.5) / HEIGHT * 2.0) * scale;
 
-		/* 6) Color the pixel */
-		if(t >= 0.0) {
-			scr.img.setPixel(x, y, sph.color);
-		}
-	}
+      // pX and pY now represent the x and y coordinate of the pixel center
+      // in screen space. We need to represent a ray moving from the 
+      // origin of our eyeball or camera to this pixel center on the screen
+      // Lets create a vector representing our camera
+      const O = new Vec3(0.0, 0.0, 1.0); // We moved it back from the origin on the z axis
+      // Lets create the vector for the ray's direction
+      // It is simply, the point of our pixel looking in the z direction
+      // minus the camera's origin vector, then normalized.
+      const R = new Vec3(pX, pY, -1.0).sub(O).normalize();
+
+      // At this point, we have a ray traveling from the camera into the scene
+      // through the center of the pixel at x, y.
+      // But what if we wanted to move the camera to a different place in the scene
+      // or world?
+      // For that we could adjust the ray with a matrix transformation, specifically
+      // the camera-to-world matrix.
+      // I will elect not to do that at this point in time.
+      // Keeping the camera where it is, we would now trace the ray into the scene
+      // by testing it against all of our objects for intersections.
+      // An intersection with an object would change the pixels eventual color.
+      // Since we do not yet have any objects, i will just arbitrarily assign
+      // the pixel color based on the values of pX and Py to make sure everything
+      // is working.
+      // The result should be a nice interpolated gradient
+      const color = new Vec3(1.0, 1.0, 1.0).add(R).scale(0.5);
+
+      img.data[y * 4 * WIDTH + x * 4 + 0] = Math.min(Math.max(color.x, 0), 1) * 255;
+      img.data[y * 4 * WIDTH + x * 4 + 1] = Math.min(Math.max(color.y, 0), 1) * 255;
+      img.data[y * 4 * WIDTH + x * 4 + 2] = Math.min(Math.max(color.z, 0), 1) * 255;
+      img.data[y * 4 * WIDTH + x * 4 + 3] = 255;
+    }
+  }
+
+  // Set the canvas width and height
+  canvas.width = WIDTH;
+  canvas.height = HEIGHT;
+  // Add the canvas to the page
+  document.body.appendChild(canvas);
+  // Put the byte buffer for our image onto the context
+  ctx.putImageData(img, 0, 0);
 }
-
-/* 7) Draw the screen */
-scr.drawImg();
