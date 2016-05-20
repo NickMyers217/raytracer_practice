@@ -56,6 +56,13 @@ window.onload = () => {
   // Create and empty byte buffer to store our image
   let img = ctx.createImageData(WIDTH, HEIGHT);
 
+  // Set up a sphere
+  const sph = {
+      center: new Vec3(0.25,1,-2),
+      radius: 0.25,
+      color: new Vec3(220, 180, 70)
+  };
+
   // Loop through each pixel in the raster space
   for(let y = 0; y < HEIGHT; y++) {
     for(let x = 0; x < WIDTH ; x++) {
@@ -73,12 +80,6 @@ window.onload = () => {
         dir: new Vec3(pX, pY, -1.0).sub(cameraOrigin).normalize()
       };
 
-      // Set up a sphere
-      const sph = {
-        center: new Vec3(0.25,1,-2),
-        radius: 0.25,
-        color: new Vec3(220, 180, 70)
-      };
 
       /** 5) Determine intersection
        *
