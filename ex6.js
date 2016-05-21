@@ -1,10 +1,12 @@
-/** Example 5
+/** Example 6
  *  
- *  The purpose of this example is to expand on our spheres from last lesson
+ *  The purpose of this example is to expand on our scene
  *
- *  This time we are going to draw 12 randomly generated spheres instead of 2
+ *  This time in addition to the random spheres, we will render a plane
  *
- *  We will accomplish this by creating a sphere class and a new function
+ *  This will show how a ray tracer can accomadate multiple geometry types
+ *
+ *  We will accomplish this by creating a plane class with its own intersect method
  *
  */
 
@@ -52,7 +54,7 @@ const Sphere = class {
     }
 
     // Test a single sphere for a hit
-    intersectSphere(ray) {
+    intersect(ray) {
         // See ex 3 for the details on this algorithm
         const oc = ray.o.sub(this.c);
         const a = ray.d.dot(ray.d);
@@ -77,22 +79,75 @@ const Sphere = class {
 };
 
 
+// Utility plane class
+const Plane = class {
+    constructor(center, normal, color) {
+        this.c = center;
+        this.n = normal;
+        this.color = color;
+    }
+
+    // TODO: Unit test this for mathematical accuracy
+    intersect(ray) {
+        /* So here is the math for finding this
+         *
+         * If you take any point on a plane minus the origin of the plane
+         * you get a vector along the plane. Any vector along the plane
+         * dotted with its normal should be zero. So we have this equation.
+         *
+         * (random point - plane origin) . normal = 0
+         * OR
+         * (p - po) . n = 0
+         *
+         * Lets substitutue p with the equation for our ray and solve for the
+         * distance
+         *
+         * (o + d*t - po) . n = 0
+         * (d*t + o - po) . n = 0
+         * d*t . n + (o - po) . n = 0
+         * d*t . n = -(o - po) . n
+         * t = -(o - po) . n / (d . n)
+         *
+         * t = (po - o) . n / (d . n)
+         *
+         * IF the denominator of that equation (l . n) is close to zero
+         * that means the ray and the plane are parallel, and we can 
+         * return false right away
+         *
+         * Otherwise we check t and make sure it is greater than or
+         * equal to zero
+         *
+         */
+
+        const denom = ray.d.dot(this.n);
+
+        if(denom > 0.000001) {
+            const t = this.c.sub(ray.o).dot(this.n) / denom;
+
+            if(t >= 0.0) return { wasHit: true, t: t };
+        }
+
+        return { wasHit: false, t: Infinity };
+    }
+}
+
+
 // Trace the ray and see if it intersected an object
-const trace = function(ray, sphs) {
+const trace = function(ray, objs) {
     let hit = false; // We haven't hit yet
     let tMin = Infinity; // This will be the smallest distance we found
     let pColor = new Vec3(60, 40, 190); // The final color of the pixel
 
-    // For each sphere in the scene
-    for(let s = 0; s < sphs.length; s++) {
-        // Test the individual sphere for a hit
-        const { wasHit, t } = sphs[s].intersectSphere(ray);
+    // For each object in the scene
+    for(let o = 0; o < objs.length; o++) {
+        // Test the individual object for a hit
+        const { wasHit, t } = objs[o].intersect(ray);
         
         // If the distance of this hit is less than anything so far
         if(t < tMin) {
             hit = true; // Then we hit
             tMin = t; // The new smallest distance is set
-            pColor = sphs[s].color; // The current color is set
+            pColor = objs[o].color; // The current color is set
         }
     }
 
@@ -103,7 +158,7 @@ const trace = function(ray, sphs) {
 
 
 // Render our scene into the byte buffer of an image
-const render = function(img, sphs) {
+const render = function(img, objs) {
     const width = img.width; // The width
     const height = img.height; // The height
     const aspect = width / height; // The aspect ration
@@ -130,7 +185,7 @@ const render = function(img, sphs) {
             // wasHit: boolean value stating if the ray hit
             // t: the distance to the hit
             // pColor: the color of the pixel
-            const { wasHit, t, pColor } = trace(ray, sphs);
+            const { wasHit, t, pColor } = trace(ray, objs);
 
             // Color the pixel in the byte buffer
             let b = (y * width + x) * 4;
@@ -178,9 +233,11 @@ window.onload = () => {
     const height = 720;
 
     // Prepare the data for our scene
-    // A list of spheres to render
-    const sphs = generateSpheres(12);
-    console.log(sphs);
+    // A list of objects to render (each needs to have an intersect method and color)
+    let objects = generateSpheres(12);
+    // Add a plane to the list
+    objects.push(new Plane(new Vec3(0, -1, 0), new Vec3(0,-1,0), new Vec3(80, 80, 80)));
+    console.log(objects);
 
     // Create the canvas, context, and empty image
     let canvas = document.createElement('canvas');
@@ -188,7 +245,7 @@ window.onload = () => {
     let img = ctx.createImageData(width, height);
 
     // Render the scene to an image
-    img = render(img, sphs);
+    img = render(img, objects);
 
     // Display it
     canvas.width = width;
