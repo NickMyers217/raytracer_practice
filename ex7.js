@@ -183,7 +183,7 @@ const render = function(img, objs) {
             const { wasHit, t, pColor } = trace(ray, objs);
 
             // Color the pixel in the byte buffer
-            let b = (y * width + x) * 4;
+            let b = y * 4 * width + x * 4;
             img.data[b + 0] = pColor.x;
             img.data[b + 1] = pColor.y;
             img.data[b + 2] = pColor.z;

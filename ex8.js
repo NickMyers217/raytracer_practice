@@ -16,31 +16,24 @@ const Vec3 = class {
         this.y = y;
         this.z = z;
     }
-
     add({ x,y,z }) {
         return new Vec3(this.x + x, this.y + y, this.z + z);
     }
-
     sub({ x,y,z }) {
         return new Vec3(this.x - x, this.y - y, this.z - z);
     }
-
     mult({ x,y,z }) {
         return new Vec3(this.x * x, this.y * y, this.z * z);
     }
-
     scale(s) {
         return new Vec3(this.x * s, this.y * s, this.z * s);
     }
-
     dot({ x,y,z }) {
         return this.x * x + this.y * y + this.z * z;
     }
-
     mag() {
         return Math.sqrt(this.dot(this));
     }
-
     normalize() {
         const m = this.mag();
         return new Vec3(this.x / m, this.y / m, this.z / m);
@@ -146,7 +139,6 @@ const trace = function(ray, objs, lights) {
             const normal = objs[o].getNormal(hitPoint); // Compute the surface normal
             const lightDir = lights[0].pos.sub(hitPoint); // Compute the direction to the light
 
-            // TODO: is this producing correct colors
             // Here we compute the final color
             // The 0.18 is the albedo, or how much light a surface reflects
             // This is generally 18% in most objects
@@ -198,7 +190,7 @@ const render = function(img, objs, lights) {
             const { wasHit, t, pColor } = trace(ray, objs, lights);
 
             // Color the pixel in the byte buffer
-            let b = (y * width + x) * 4;
+            let b = y * 4 * width + x * 4;
             img.data[b + 0] = pColor.x;
             img.data[b + 1] = pColor.y;
             img.data[b + 2] = pColor.z;
@@ -247,9 +239,14 @@ window.onload = () => {
     let objects = generateSpheres(12);
     // Add a plane to the list
     objects.push(new Plane(new Vec3(0, -1, 0), new Vec3(0,1,0), new Vec3(20,20,20)));
-    console.log(objects);
+
     // We also need all the lights in the scene
-    let lights = [new PointLight(new Vec3(0,2,1), new Vec3(1,1,1), 25)];
+    // Position one light to left of the spheres
+    let lights = [new PointLight(new Vec3(-2,2,1), new Vec3(1,1,1), 20)];
+
+    // Print scen info for debugging
+    console.log(objects);
+    console.log(lights);
 
     // Create the canvas, context, and empty image
     let canvas = document.createElement('canvas');
@@ -258,6 +255,30 @@ window.onload = () => {
 
     // Render the scene to an image
     img = render(img, objects, lights);
+
+    // Test that all the colors are a correct value
+    for(let y = 0; y < height; y++) {
+        for(let x = 0; x < width; x++) {
+            const b = y * 4 * width + x * 4;
+            const px = img.data[b + 0];
+            const py = img.data[b + 1];
+            const pz = img.data[b + 2];
+            const pa = img.data[b + 3];
+
+            if(px < 0 || px > 255) {
+                console.log('Px (' + px + ') is discrepant at ' + x + ', ' + y + '!');
+            }
+            if(py < 0 || py > 255) {
+                console.log('Py (' + py + ') is discrepant at ' + x + ', ' + y + '!');
+            }
+            if(pz < 0 || pz > 255) {
+                console.log('Pz (' + pz + ') is discrepant at ' + x + ', ' + y + '!');
+            }
+            if(pa < 0 || pa > 255) {
+                console.log('Pa (' + pa + ') is discrepant at ' + x + ', ' + y + '!');
+            }
+        }
+    }
 
     // Display it
     canvas.width = width;
