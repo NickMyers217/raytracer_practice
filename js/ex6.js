@@ -1,11 +1,14 @@
-/** Example 8
+/** Example 6
  *  
- *  The purpose of this example is to add Lambertian lighting to the scene
+ *  The purpose of this example is to add some simple shading to our scene
  *
- *  This will show how a ray tracer can handle a more complex shading solution
+ *  This will finally make the scene look 3d
  *
- *  We will accomplish this by adding lights to our scene. And then we will
- *  implement Lambert's cosine law to create a simple Lambertian lighting solution.
+ *  This will show how a ray tracer can handle a shading solution
+ *
+ *  We will accomplish this by ensuring our geometries implement a way
+ *  to calculate their surface normals at a given point. And then we will
+ *  create a simple shading solution.
  *
  */
 
@@ -22,9 +25,6 @@ const Vec3 = class {
     sub({ x,y,z }) {
         return new Vec3(this.x - x, this.y - y, this.z - z);
     }
-    mult({ x,y,z }) {
-        return new Vec3(this.x * x, this.y * y, this.z * z);
-    }
     scale(s) {
         return new Vec3(this.x * s, this.y * s, this.z * s);
     }
@@ -39,16 +39,6 @@ const Vec3 = class {
         return new Vec3(this.x / m, this.y / m, this.z / m);
     }
 };
-
-
-// Utility point light class
-const PointLight = class {
-    constructor(pos, color, intensity) {
-        this.pos = pos; // The light's position
-        this.color = color; // The color
-        this.i = intensity; // The intesnity of the light
-    }
-}
 
 
 // Utility sphere class
@@ -90,37 +80,8 @@ const Sphere = class {
 };
 
 
-// Utility plane class
-const Plane = class {
-    constructor(center, normal, color) {
-        this.c = center;
-        this.n = normal;
-        this.color = color;
-    }
-
-    // Test the ray for a hit
-    // TODO: Unit test this for mathematical accuracy
-    intersect(ray) {
-        const denom = ray.d.dot(this.n);
-
-        if(denom > 0.000001 || denom < -0.000001) {
-            const t = this.c.sub(ray.o).dot(this.n) / denom;
-
-            if(t >= 0.0) return { wasHit: true, t: t };
-        }
-
-        return { wasHit: false, t: Infinity };
-    }
-
-    // Get the surface normal for a point P on the plane
-    getNormal(p) {
-        return this.n;
-    }
-}
-
-
 // Trace the ray and see if it intersected an object
-const trace = function(ray, objs, lights) {
+const trace = function(ray, objs) {
     let hit = false; // We haven't hit yet
     let tMin = Infinity; // This will be the smallest distance we found
     let pColor = new Vec3(60, 40, 190); // The final color of the pixel
@@ -135,21 +96,18 @@ const trace = function(ray, objs, lights) {
             hit = true; // Then we hit
             tMin = t; // The new smallest distance is set
 
-            const hitPoint = ray.o.add(ray.d).scale(t); // Compute the hitpoint of the ray
-            const normal = objs[o].getNormal(hitPoint); // Compute the surface normal
-            const lightDir = lights[0].pos.sub(hitPoint); // Compute the direction to the light
-
-            // Here we compute the final color
-            // The 0.18 is the albedo, or how much light a surface reflects
-            // This is generally 18% in most objects
-            const hitColor = lights[0].color // Take the initial light color
-                .scale(0.18 / Math.PI * lights[0].i) // Scale by the albedo
-                // Scale by a clamped dot product of the normal and light direction;
-                .scale(Math.max(0.0, normal.dot(lightDir)))
-                .mult(objs[o].color); // Finally add in the object color
-
-
-            pColor = hitColor;
+            // Here is where we shade the objects color
+            // We will take the clamped dot product of the surface normal and view direction
+            // The view direction is just the opposite of the ray direction
+            // This will give us a facing ratio between 0 and 1
+            // 0 being not visible, and 1 being totally visible
+            // We can apply that ratio to the color to scale it
+            const hitPoint = ray.o.add(ray.d).scale(t);
+            let ratio = Math.max(0, objs[o].getNormal(hitPoint).dot(ray.d.scale(-1)));
+            // For a more exaggerated effect, we can scale the ratio by its sin
+            ratio *= Math.sin(ratio);
+            // Set the pixel color
+            pColor = objs[o].color.scale(ratio);
         }
     }
 
@@ -160,7 +118,7 @@ const trace = function(ray, objs, lights) {
 
 
 // Render our scene into the byte buffer of an image
-const render = function(img, objs, lights) {
+const render = function(img, objs) {
     const width = img.width; // The width
     const height = img.height; // The height
     const aspect = width / height; // The aspect ration
@@ -187,7 +145,7 @@ const render = function(img, objs, lights) {
             // wasHit: boolean value stating if the ray hit
             // t: the distance to the hit
             // pColor: the color of the pixel
-            const { wasHit, t, pColor } = trace(ray, objs, lights);
+            const { wasHit, t, pColor } = trace(ray, objs);
 
             // Color the pixel in the byte buffer
             let b = y * 4 * width + x * 4;
@@ -237,16 +195,7 @@ window.onload = () => {
     // Prepare the data for our scene
     // A list of objects to render (each needs to have an intersect method and color)
     let objects = generateSpheres(12);
-    // Add a plane to the list
-    objects.push(new Plane(new Vec3(0, -1, 0), new Vec3(0,1,0), new Vec3(20,20,20)));
-
-    // We also need all the lights in the scene
-    // Position one light to left of the spheres
-    let lights = [new PointLight(new Vec3(-2,2,1), new Vec3(1,1,1), 20)];
-
-    // Print scen info for debugging
     console.log(objects);
-    console.log(lights);
 
     // Create the canvas, context, and empty image
     let canvas = document.createElement('canvas');
@@ -254,31 +203,7 @@ window.onload = () => {
     let img = ctx.createImageData(width, height);
 
     // Render the scene to an image
-    img = render(img, objects, lights);
-
-    // Test that all the colors are a correct value
-    for(let y = 0; y < height; y++) {
-        for(let x = 0; x < width; x++) {
-            const b = y * 4 * width + x * 4;
-            const px = img.data[b + 0];
-            const py = img.data[b + 1];
-            const pz = img.data[b + 2];
-            const pa = img.data[b + 3];
-
-            if(px < 0 || px > 255) {
-                console.log('Px (' + px + ') is discrepant at ' + x + ', ' + y + '!');
-            }
-            if(py < 0 || py > 255) {
-                console.log('Py (' + py + ') is discrepant at ' + x + ', ' + y + '!');
-            }
-            if(pz < 0 || pz > 255) {
-                console.log('Pz (' + pz + ') is discrepant at ' + x + ', ' + y + '!');
-            }
-            if(pa < 0 || pa > 255) {
-                console.log('Pa (' + pa + ') is discrepant at ' + x + ', ' + y + '!');
-            }
-        }
-    }
+    img = render(img, objects);
 
     // Display it
     canvas.width = width;

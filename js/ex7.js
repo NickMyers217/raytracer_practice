@@ -1,10 +1,11 @@
-/** Example 5
+/** Example 7
  *  
- *  The purpose of this example is to expand on our spheres from last lesson
+ *  The purpose of this example is to add Lambertian lighting to the scene
  *
- *  This time we are going to draw 12 randomly generated spheres instead of 2
+ *  This will show how a ray tracer can handle a more complex shading solution
  *
- *  We will accomplish this by creating a sphere class and a new function
+ *  We will accomplish this by adding lights to our scene. And then we will
+ *  implement Lambert's cosine law to create a simple Lambertian lighting solution.
  *
  */
 
@@ -15,32 +16,39 @@ const Vec3 = class {
         this.y = y;
         this.z = z;
     }
-
     add({ x,y,z }) {
         return new Vec3(this.x + x, this.y + y, this.z + z);
     }
-
     sub({ x,y,z }) {
         return new Vec3(this.x - x, this.y - y, this.z - z);
     }
-
+    mult({ x,y,z }) {
+        return new Vec3(this.x * x, this.y * y, this.z * z);
+    }
     scale(s) {
         return new Vec3(this.x * s, this.y * s, this.z * s);
     }
-
     dot({ x,y,z }) {
         return this.x * x + this.y * y + this.z * z;
     }
-
     mag() {
         return Math.sqrt(this.dot(this));
     }
-
     normalize() {
         const m = this.mag();
         return new Vec3(this.x / m, this.y / m, this.z / m);
     }
 };
+
+
+// Utility point light class
+const PointLight = class {
+    constructor(pos, color, intensity) {
+        this.pos = pos; // The light's position
+        this.color = color; // The color
+        this.i = intensity; // The intesnity of the light
+    }
+}
 
 
 // Utility sphere class
@@ -52,7 +60,7 @@ const Sphere = class {
     }
 
     // Test a single sphere for a hit
-    intersectSphere(ray) {
+    intersect(ray) {
         // See ex 3 for the details on this algorithm
         const oc = ray.o.sub(this.c);
         const a = ray.d.dot(ray.d);
@@ -74,25 +82,45 @@ const Sphere = class {
             return { wasHit: true, t: tCloser };
         }
     }
+
+    // Get the surface normal for a point P on the sphere
+    getNormal(p) {
+        return p.sub(this.c).normalize();
+    }
 };
 
 
 // Trace the ray and see if it intersected an object
-const trace = function(ray, sphs) {
+const trace = function(ray, objs, lights) {
     let hit = false; // We haven't hit yet
     let tMin = Infinity; // This will be the smallest distance we found
     let pColor = new Vec3(60, 40, 190); // The final color of the pixel
 
-    // For each sphere in the scene
-    for(let s = 0; s < sphs.length; s++) {
-        // Test the individual sphere for a hit
-        const { wasHit, t } = sphs[s].intersectSphere(ray);
+    // For each object in the scene
+    for(let o = 0; o < objs.length; o++) {
+        // Test the individual object for a hit
+        const { wasHit, t } = objs[o].intersect(ray);
+        hit = wasHit;
         
         // If the distance of this hit is less than anything so far
-        if(t < tMin) {
-            hit = true; // Then we hit
+        if(wasHit && t < tMin) {
             tMin = t; // The new smallest distance is set
-            pColor = sphs[s].color; // The current color is set
+
+            const hitPoint = ray.o.add(ray.d).scale(t); // Compute the hitpoint of the ray
+            const normal = objs[o].getNormal(hitPoint); // Compute the surface normal
+            const lightDir = hitPoint.sub(lights[0].pos).scale(-1); // Compute the direction to the light
+
+            // Here we compute the final color
+            // The 0.18 is the albedo, or how much light a surface reflects
+            // This is generally 18% in most objects
+            const hitColor = lights[0].color // Take the initial light color
+                .scale(0.18 / Math.PI * lights[0].i) // Scale by the albedo
+                // Scale by a clamped dot product of the normal and light direction;
+                .scale(Math.max(0.0, normal.dot(lightDir)))
+                .mult(objs[o].color); // Finally add in the object color
+
+
+            pColor = hitColor;
         }
     }
 
@@ -103,12 +131,13 @@ const trace = function(ray, sphs) {
 
 
 // Render our scene into the byte buffer of an image
-const render = function(img, sphs) {
+const render = function(img, objs, lights) {
     const width = img.width; // The width
     const height = img.height; // The height
     const aspect = width / height; // The aspect ration
     const fov = 90; // The fov
     const scale = Math.tan(fov * 0.5 * Math.PI / 180); // The scale
+    const camera = new Vec3(0.0, 0.0, 1.0); // The camera origin vector
 
     // For every pixel in the image
     for(let y = 0; y < height; y++) {
@@ -117,23 +146,17 @@ const render = function(img, sphs) {
             const i = ((x + 0.5) / width * 2.0 - 1.0) * aspect * scale;
             const j = (1 - (y + 0.5) / height * 2.0) * scale;
 
-            // The camera origin vector
-            const camera = new Vec3(0.0, 0.0, 1.0);
-            
             // The ray with an origin and direction
             const ray = {
                 o: camera,
                 d: new Vec3(i, j, -1.0).sub(camera).normalize()
             };
 
-            // Trace the ray, and return the following:
-            // wasHit: boolean value stating if the ray hit
-            // t: the distance to the hit
-            // pColor: the color of the pixel
-            const { wasHit, t, pColor } = trace(ray, sphs);
+            // Trace the ray
+            const { wasHit, t, pColor } = trace(ray, objs, lights);
 
             // Color the pixel in the byte buffer
-            let b = (y * width + x) * 4;
+            let b = y * 4 * width + x * 4;
             img.data[b + 0] = pColor.x;
             img.data[b + 1] = pColor.y;
             img.data[b + 2] = pColor.z;
@@ -178,9 +201,16 @@ window.onload = () => {
     const height = 720;
 
     // Prepare the data for our scene
-    // A list of spheres to render
-    const sphs = generateSpheres(12);
-    console.log(sphs);
+    // A list of objects to render (each needs to have an intersect method and color)
+    let objects = generateSpheres(5);
+
+    // We also need all the lights in the scene
+    // Position one light to left of the spheres
+    let lights = [new PointLight(new Vec3(-2,5,1), new Vec3(1,1,1), 10)];
+
+    // Print scen info for debugging
+    console.log(objects);
+    console.log(lights);
 
     // Create the canvas, context, and empty image
     let canvas = document.createElement('canvas');
@@ -188,7 +218,31 @@ window.onload = () => {
     let img = ctx.createImageData(width, height);
 
     // Render the scene to an image
-    img = render(img, sphs);
+    img = render(img, objects, lights);
+
+    // Test that all the colors are a correct value
+    for(let y = 0; y < height; y++) {
+        for(let x = 0; x < width; x++) {
+            const b = y * 4 * width + x * 4;
+            const px = img.data[b + 0];
+            const py = img.data[b + 1];
+            const pz = img.data[b + 2];
+            const pa = img.data[b + 3];
+
+            if(px < 0 || px > 255) {
+                console.log('Px (' + px + ') is discrepant at ' + x + ', ' + y + '!');
+            }
+            if(py < 0 || py > 255) {
+                console.log('Py (' + py + ') is discrepant at ' + x + ', ' + y + '!');
+            }
+            if(pz < 0 || pz > 255) {
+                console.log('Pz (' + pz + ') is discrepant at ' + x + ', ' + y + '!');
+            }
+            if(pa < 0 || pa > 255) {
+                console.log('Pa (' + pa + ') is discrepant at ' + x + ', ' + y + '!');
+            }
+        }
+    }
 
     // Display it
     canvas.width = width;

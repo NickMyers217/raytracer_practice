@@ -16,27 +16,21 @@ const Vec3 = class {
     this.y = y;
     this.z = z;
   }
-
   add({ x,y,z }) {
     return new Vec3(this.x + x, this.y + y, this.z + z);
   }
-
   sub({ x,y,z }) {
     return new Vec3(this.x - x, this.y - y, this.z - z);
   }
-
   scale(s) {
     return new Vec3(this.x * s, this.y * s, this.z * s);
   }
-
   dot({ x,y,z }) {
     return this.x * x + this.y * y + this.z * z;
   }
-
   mag() {
     return Math.sqrt(this.dot(this));
   }
-
   normalize() {
     const m = this.mag();
     return new Vec3(this.x / m, this.y / m, this.z / m);
